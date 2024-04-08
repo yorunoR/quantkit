@@ -245,7 +245,7 @@ def run_gptq(model, output, hf_cache, bits, group_size, damp, sym, true_seq, act
     quant_path = output
 
     # gptq needs post-training, use wikitext2
-    traindataset, testenc = get_wikitext2(128, 0, 4096, model_dir)
+    traindataset, testenc = get_wikitext2_ja(128, 0, 4096, model_dir)
 
     dt_start = datetime.datetime.now()
     print(f"Starting gptq quantization for {quant_path} at {str(dt_start)}")
@@ -442,3 +442,30 @@ def get_wikitext2(nsamples, seed, seqlen, model):
         traindataset.append({'input_ids':inp,'attention_mask': attention_mask})
     return traindataset, testenc
 
+def get_wikitext2_ja(nsamples, seed, seqlen, model):
+    import numpy as np
+    import torch
+    from datasets import load_dataset
+    from transformers import AutoTokenizer
+
+    dataset = load_dataset("mmnga/wikipedia-ja-20230720-1k", split="train")
+
+    tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=False)
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    traindataset = tokenizer(dataset['text'], return_tensors='pt', max_length=seqlen, truncation=True, padding="max_length")
+
+    import random
+    random.seed(seed)
+    np.random.seed(0)
+    torch.random.manual_seed(0)
+
+    sampled_traindataset = []
+    for _ in range(nsamples):
+        i = random.randint(0, len(traindataset) - 1)
+        inp = traindataset[i].ids
+        attention_mask = traindataset[i].attention_mask
+        sampled_traindataset.append({'input_ids':inp,'attention_mask': attention_mask})
+
+    return sampled_traindataset, []
