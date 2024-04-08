@@ -194,7 +194,7 @@ def run_awq(model, output, hf_cache, bits, group_size, zero_point, gemm):
     print(f"Starting awq quantization for {quant_path} at {str(dt_start)}")
     start = time.perf_counter()
 
-    model = AutoAWQForCausalLM.from_pretrained(model_dir)
+    model = AutoAWQForCausalLM.from_pretrained(model_dir, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=False)
 
     model.quantize(tokenizer, quant_config=quant_config)
@@ -251,7 +251,7 @@ def run_gptq(model, output, hf_cache, bits, group_size, damp, sym, true_seq, act
     print(f"Starting gptq quantization for {quant_path} at {str(dt_start)}")
     start = time.perf_counter()
 
-    model = AutoGPTQForCausalLM.from_pretrained(model_dir, quant_options, torch_dtype="auto", low_cpu_mem_usage=True)
+    model = AutoGPTQForCausalLM.from_pretrained(model_dir, quant_options, torch_dtype="auto", low_cpu_mem_usage=True, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=False)
 
     model.quantize(traindataset, use_triton=False, batch_size=1, cache_examples_on_gpu=False)
