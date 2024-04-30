@@ -236,7 +236,8 @@ def run_gptq(model, output, hf_cache, bits, group_size, damp, sym, true_seq, act
         group_size=group_size,
         desc_act=act_order,
         sym=sym,
-        true_sequential=true_seq
+        true_sequential=true_seq,
+        damp_percent=0.1
     )
 
     if output is None:
