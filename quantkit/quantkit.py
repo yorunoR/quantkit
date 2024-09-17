@@ -194,7 +194,7 @@ def run_awq(model, output, hf_cache, bits, group_size, zero_point, gemm):
     print(f"Starting awq quantization for {quant_path} at {str(dt_start)}")
     start = time.perf_counter()
 
-    model = AutoAWQForCausalLM.from_pretrained(model_dir)
+    model = AutoAWQForCausalLM.from_pretrained(model_dir, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=False)
 
     model.quantize(tokenizer, quant_config=quant_config)
@@ -236,7 +236,8 @@ def run_gptq(model, output, hf_cache, bits, group_size, damp, sym, true_seq, act
         group_size=group_size,
         desc_act=act_order,
         sym=sym,
-        true_sequential=true_seq
+        true_sequential=true_seq,
+        damp_percent=0.1
     )
 
     if output is None:
@@ -245,13 +246,13 @@ def run_gptq(model, output, hf_cache, bits, group_size, damp, sym, true_seq, act
     quant_path = output
 
     # gptq needs post-training, use wikitext2
-    traindataset, testenc = get_wikitext2(128, 0, 4096, model_dir)
+    traindataset, testenc = get_wikitext2_ja(128, 0, 4096, model_dir)
 
     dt_start = datetime.datetime.now()
     print(f"Starting gptq quantization for {quant_path} at {str(dt_start)}")
     start = time.perf_counter()
 
-    model = AutoGPTQForCausalLM.from_pretrained(model_dir, quant_options, torch_dtype="auto", low_cpu_mem_usage=True)
+    model = AutoGPTQForCausalLM.from_pretrained(model_dir, quant_options, torch_dtype="auto", low_cpu_mem_usage=True, device_map="auto")
     tokenizer = AutoTokenizer.from_pretrained(model_dir, trust_remote_code=False)
 
     model.quantize(traindataset, use_triton=False, batch_size=1, cache_examples_on_gpu=False)
@@ -442,3 +443,30 @@ def get_wikitext2(nsamples, seed, seqlen, model):
         traindataset.append({'input_ids':inp,'attention_mask': attention_mask})
     return traindataset, testenc
 
+def get_wikitext2_ja(nsamples, seed, seqlen, model):
+    import numpy as np
+    import torch
+    from datasets import load_dataset
+    from transformers import AutoTokenizer
+
+    dataset = load_dataset("mmnga/wikipedia-ja-20230720-1k", split="train")
+
+    tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=False)
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    traindataset = tokenizer(dataset['text'], return_tensors='pt', max_length=seqlen, truncation=True, padding="max_length")
+
+    import random
+    random.seed(seed)
+    np.random.seed(0)
+    torch.random.manual_seed(0)
+
+    sampled_traindataset = []
+    for _ in range(nsamples):
+        i = random.randint(0, len(traindataset) - 1)
+        inp = traindataset[i].ids
+        attention_mask = traindataset[i].attention_mask
+        sampled_traindataset.append({'input_ids':inp,'attention_mask': attention_mask})
+
+    return sampled_traindataset, []
